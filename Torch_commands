@@ -1,0 +1,279 @@
+#1. install package
+install.packages("torch")
+library(torch)
+cuda_is_available() #GPU or CPU?
+
+#2. introduction of torch elements
+#(1) basic elements
+#Tensor: data container
+#Array computation library: more than 200 functions for conculation and transformation data
+#Autograd: parameters selection
+#(2) higher elements
+#Neural network modules:nn_modules for creating neural network layers
+#Datasets: loading data in torch
+#Dataloaders: loading data in different batches
+
+#3.Tensor relative functions
+#(1) Create Tensor
+#Transform R objects, including vector, matrix or multi-dimensional array, to tensor
+#data.frame cannot be transformed to tensor directly
+x=torch_tensor(a) #a is a R object
+#Other functions for creating tensor
+torch_arrange()
+torch_full()
+torch_ones()
+torch_zeros()
+torch_rand()
+torch_randn()
+
+#PS:Transform tensors back to R objects
+as.array()
+as.matrix()
+as.numeric()
+as.integer()
+
+#(2) Tensor attributes
+#dtype: int, float, double, etc.
+#device: cpu or gpu(cuda)
+#shape: dims,size
+#requires_grad: whether to perform automatic gradient descent calculation, default=FALSE
+
+x$shape
+X$requires_grad
+
+#change tensor attributes 
+x$to(device="cuda")
+
+#(3) Tensor index
+#select tensor elements
+#one-dimension tensor
+x[1] #the first element
+x[-1] #the last element
+x[1:3] #the first 3 elements
+x[3:N] #the third element to the last element
+x[x>2] # the elements more than 2
+
+#multi-dimension elements
+dim(x)
+x[1,1,1] #the first elements of each dimension
+x[,,1] #empty representing all elements in this dimension
+x[1,1,1]=0 #change elements values
+
+#(4) calculate tensor
+#Tensor provides more than 200 functions for tensor calculation
+#subtraction
+torch_sub(x,1) == x$sub(1) # elements of x substract 1
+
+torch_sum(x,dim=1) #sum the columns
+torch_sum(x,dim=2) #sum the rows
+
+#calculate between two tensor
+torch_ones(3,2) + torch_tensor(c(1,2))
+
+#4.Autograd
+#this is the key of training neural network. This can calculate the exact derivative.
+#eg: There is a function: y=x^3. Calculate it exact derivative at x=2.
+x=torch_tensor(2, requires_graad=TRUE)
+y=x^3
+y$backward()# Use backward() function of y, and calculate the derivative of y.
+x$grad #get the derivative
+#PS: Autograd needs to be banned in some operations, and with_no_grad({...}) can be used to enclose the operations
+
+#eg: Gradient descent optimization
+f=function(x) 3*x^2-2*x
+lr=0.1 #learning rate
+num_iter= 20 #iteration times
+x=torch_randn(1, requires_grad=TRUE) #initialize x randomly
+for(i in seq_len(num_iter)){
+y=f(x)
+y$backward() #Use backward function of y to calculate grad by automatic diferentation
+with_no_grad({
+x$sub_(lr*x$grad) #initial x subtract learning_rate*grad #change x
+x$grad$zero_() }) #make grad value zero, and recaulculate grad next time
+}
+
+#5. Other funcions to conduct gradient descent optimization
+#Previous functions are simple and basic ways to conduct gradient descent optimization. There are other optimizer for better and easier operation.
+#such as Adam, Adagrad and SGD. In addition, optimizer coulld be defined by yourself.
+
+#eg1: Use SGD optimizer to conduct gradient descent optimization
+lr=0.1 #learning rate
+num_iter=20 #iteration times
+x= torch_randn(1, requires_grad=TRUE) #initialize x randomly
+opt=optim_sgd(x,lr=lr) #create gradient deescent optimization
+for(i in seq_len(num_iter)){
+opt$zero_grad() #refresh all grad attributes of all paremeters
+y=f(x)
+y$backward()
+opt$step() #update all parameters
+}
+
+
+#6. neural network modules
+# All layers and models are called neural network modules in torch.
+# nn_modules make it easier to create a complex deep neural network and integrate multiple layers
+
+#eg1: create a linear layer== a simple and one-layer model
+linear=nn_linear(in_features=10, out_features=1) #create a linear layer
+linear #check this module and its parameters
+x= torch_randn(3,10) #create a tensor as training data, and the columne number should be equal to
+input feature number
+linear(x) #pass tensor to this simple module and get result
+
+#There are some simple ways to visit module parameters
+linear$parameters 
+linear$weight
+linear$bias
+
+#There are other nn_modules in torch:
+#such as:
+nn_conv2d
+nn_lstm
+nn_max_pool2d
+#nn_modules are also could be defined by yourself
+#various nn_modules could be combined sequencely according to your need and form a deep learning nerual neteork. 
+
+#There are two ways to create complex and multiple layers neural network in torch
+#(1) Create sequential network by nn_sequential(), similar to Python Keras
+#(2) Create manual and flexible nerual network, similar to Python Tensorflow. This way is more suitable for complex neural network.
+
+#eg: Use two ways to create a four-layers and full-connection neural network. There are seperately 4,8,16 and 3 neurons in each layers.
+#(1) nn_sequential() way
+model= nn_sequential(
+#the first layer
+nn_linear(4,8),
+nn_relu(),
+#the second layer
+nn_linear(8,16),
+nn_relu(),
+# the third layer
+nn_linear(16,3),
+nn_softmax(2)
+)
+#(2) manual and flexible way
+net=nn_module("class_net", #define a module name
+initialize=function(){ #initialize neural network layers
+self$linear1=nn_linear(4,8) #self refers to network itself #the first layer
+self$linear2=nn_linear(8,16) #the second layer
+self$linear3=nn_linear(16,3)}, #the third layer
+forward=function(x){ #data transmission path #activation functions are concluded in this part
+x%>%
+self$linear1()%>%
+nnf_relu()%>%
+self$linear2()%>%
+nnf_relu()%>%
+self$linear3()%>%
+nnf_softmax(2)})
+model=net()
+
+#The created model could be used as a function
+x=torch_randint(0,2,size=c(5,4)) #create a tensor as data
+model$forward(x) #use forward function for passing x to model and get result
+
+
+#7.data loader in torch
+#Date loader, integrating dataset and sampler together, is used to iterate dataset in batch. It can be used to set shuffle and parallel computing.
+# Data loading object can be created by passing a dataset to dataloader() function.
+dl= dataloader(dataset, batch_size=32, shuffle=TRUE)
+#batch_size is observation number in each batch
+length(dl) #batch number
+#Then data loader can be used for loop iteration data by combination with coro::loop() function. 
+total=0
+coro::loop(for (batch in dl){
+total=total+batch$x$shape[1]
+}) 
+
+
+#eg1: simple neural network
+#create simulation data
+library(torch)
+d_in=3 #input feature number
+d_out=1 #output feature number
+n=100 #simulation sample number
+set.seed(1)
+x=torch_randn(n,d_in)
+y=x[,1,NULL]*0.2 -x[,2,NULL]*1.3 - x[,3,NULL]*0.5+torch_randn(n,1)
+
+#define and create a neural network
+d_hidden=32 #there are 32 neurons in hidden layer
+model=nn_sequential(
+nn_linear(d_in,d_hidden),
+nn_relu(),
+nn_linear(d_hidden, d_out))
+learning_rate=0.08
+#create and define gradiet descent optimizer
+optimizer=optim_adam(model$parameters,lr=learning_rate)
+
+#training iteration
+for(t in 1:200){
+y_pred=model(x) #pass data to model and get prediction result
+loss=nnf_mse_loss(y_pred,y,reduction="sum") #loss function is used to calculate difference between prediction and realistic.
+if(t %% 20 == 0)
+cat("Epoch:",t," Loss: ",loss$item(),"\n")
+#back-propagation
+optimizer$zero_grad() #make optimizer grad zero
+loss$backward() #calculate grad according to loss
+optimizer$step() #update model parameters using optimizer
+}
+
+#eg2: CNN example:MNIST dataset
+#This is a typical deel learning example to classify manual number pictures (0-9)
+library(torch)
+library(torchvision) #pictures
+library(luz)
+set.seed(1)
+torch_manual_seed(1)
+
+#download and load dataset
+train_ds=mnist_dataset("data",download=FALSE, transform=transform_to_tensor)
+test_ds=mnist_dataset("data",train=FALSE,transform=transform_to_tensor)
+
+#data loader to divide data in batches
+train_dl=dataloader(train_ds, batch_size=128,shuffle=TRUE)
+test_dl=dataloader(test_ds, batch_size=128)
+#check batch length
+length(train_dl)
+length(test_dl)
+
+#create neural network
+net=nn_module("Net",
+initialize=function(){
+self$conv1=nn_conv2d(1,32,3,1)
+self$conv2=nn_conv2d(32,64,3,1)
+self$dropout1=nn_dropout(0.25)
+self$dropout2=nn_dropout(0.5)
+self$fc1=nn_linear(9216,128)
+self$fc2=nn_linear(128,10)},
+forward=function(x){
+x%>%
+self$conv1()%>%
+nnf_relu()%>%
+self$conv2()%>%
+nnf_relu()%>%
+nnf_max_pool2d(2)%>%
+self$dropout1()%>%
+torch_flatten(start_dim=2)%>%
+self$fc1()%>%
+nnf_relu() %>%
+self$dropout2()%>%
+self$fc2()
+}
+)
+
+#training network #use luz package
+fitted=net%>% #fittd is trained model
+setup(loss=nn_cross_entropy_loss(),
+optimizer=optim_adam, #optimizer
+metrics=list(luz_metric_accuracy()))%>%
+fit(train_dl, epochs=10, valid_data=test_dl)
+
+#use trained model to predict new data
+preds=predict(fitted,test_dl)#fitted is trained model
+preds$shape
+
+#save model
+luz_save(fitted, "mnist-cnn.pt")
+#save model to local for next use
+
+
+
